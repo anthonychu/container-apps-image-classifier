@@ -1,0 +1,170 @@
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Dog or Cat?</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+    integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+  <style>
+    body {
+      min-height: 75rem;
+      padding-top: 100px;
+    }
+
+    .em,
+    .emoji {
+      font-size: 60px;
+    }
+
+    .slide-fade-enter-active,
+    .slide-fade-leave-active {
+      transition: all .5s ease;
+    }
+
+    .slide-fade-enter,
+    .slide-fade-leave-to {
+      /* transform: translateX(60px); */
+      height: 0px;
+      overflow-y: hidden;
+      opacity: 0;
+    }
+
+    .jumbotron img {
+      max-height: 200px;
+    }
+
+    .jumbotron {
+      padding: 2rem;
+    }
+
+    .navbar-brand {
+      font-size: 2rem;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <nav class="navbar navbar-expand-md navbar-dark fixed-top bg-dark">
+      <div class="container">
+        <span class="navbar-brand">Dog or Cat?</span>
+        <span class="navbar-brand">{{ processingRate }} images/sec (replicas: {{ numWorkers }})</span>
+      </div>
+    </nav>
+
+    <div class="container" v-if="ready">
+
+      <form class="form-inline" v-on:submit.prevent="onSubmit" v-if="!working">
+        <div class="form-group mb-2">
+          <label for="inputCount">Number of images</label>
+        </div>
+        <div class="form-group mx-sm-3 mb-2">
+          <input type="number" class="form-control" id="inputCount" v-model.number="numImagesRequested" min="1" max="1000">
+        </div>
+        <button type="submit" class="btn btn-primary mb-2">Classify images</button>
+      </form>
+
+      <!-- <div class="row" v-if="working" style="margin-bottom: 20px;">
+        <div class="col">
+          <div class="progress">
+            <div class="progress-bar" role="progressbar" 
+              v-bind:style="{ width: `${percentComplete}%` }" aria-valuenow="{{ percentComplete }}" 
+              aria-valuemin="0" aria-valuemax="100">{{ resultsReceived }}</div>
+          </div>
+        </div>
+      </div> -->
+
+      <transition-group name="slide-fade" tag="div">
+        <div class="jumbotron" v-for="result in results" v-bind:key="result.id">
+          <div class="row">
+            <div class="col">
+              <img :src="result.imageUrl" style="max-height: 200px">
+            </div>
+            <div class="col">
+              <span v-if="result.prediction === 'dog'" class="emoji">🐶 Dog</span>
+              <span v-if="result.prediction === 'cat'" class="emoji">😸 Cat</span>
+            </div>
+          </div>
+        </div>
+      </transition-group>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.5/signalr.min.js" integrity="sha512-Wj6cUe+56vJ4FtfeF4QqPHy4VGO9gZ2iU8GFlLRjawhx1f4sW3BezJLU1ewaZl3bZV8iya0EJOmRY5SD9XTwvw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.11/dist/vue.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/rxjs/5.5.12/Rx.min.js" integrity="sha256-cwLuyVzYZFWhnQzXHj8mufd8tyxMZo1Pso0QNA5cqlI=" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/uuid@7.0.3/dist/umd/uuidv4.min.js"></script>
+  <script>
+    const apiBaseUrl = ''
+    const functionKey = ''
+    const sessionId = uuidv4()
+
+    const app = new Vue({
+      el: '#app',
+      data: {
+        numImagesRequested: 10,
+        resultsReceived: 0,
+        results: [],
+        processingRate: 0,
+        ready: false,
+        working: false,
+        numWorkers: 0
+      },
+      mounted: function () {
+        const imagesSubject = new Rx.Subject()
+        const timeWindow = 6000
+        imagesSubject.bufferTime(timeWindow, 1000).subscribe(function(results) {
+          this.processingRate = (results.length / timeWindow * 1000).toFixed(2)
+          this.numWorkers = results.map(r => r.workerId).filter((v, i, a) => a.indexOf(v) === i).length
+        }.bind(this))
+
+        const connection = new signalR.HubConnectionBuilder()
+          .withUrl('/progress')
+          .withAutomaticReconnect()
+          .build()
+
+        connection.on('NewProgress', function (result) {
+          if (!this.working) {
+            return;
+          }
+          result.id = this.resultsReceived++
+          this.results.unshift(result)
+          imagesSubject.next(result)
+          if (this.results.length > 50) {
+            this.results.length = 50
+          }
+        }.bind(this))
+        this.connection = connection
+
+        return connection.start()
+          .then(function() {
+            this.ready = true
+          }.bind(this))
+      },
+      methods: {
+        onSubmit: function() {
+          this.working = true
+          return fetch(`${apiBaseUrl}/submitimages?numimages=${this.numImagesRequested}`, {method: 'POST'})
+            .then(response => response.json())
+            .then(function(data) {
+              console.log(data)
+            }.bind(this))
+        }
+      },
+    //   computed: {
+    //     percentComplete: function() {
+    //       return this.resultsReceived / this.numImagesRequested * 100
+    //     }
+    //   },
+      beforeDestroy: function () {
+        if (this.connection) {
+          this.connection.stop()
+        }
+      }
+    })
+  </script>
+</body>
+
+</html>

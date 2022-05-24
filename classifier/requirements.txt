@@ -1,0 +1,5 @@
+azure-storage-queue==12.3.0
+azure-identity==1.10.0
+tensorflow==1.15.5
+Pillow
+requests

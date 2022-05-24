@@ -1,0 +1,28 @@
+properties:
+  template:
+    containers:
+      - env:
+          - name: FRONTEND_RESULT_URL
+            value: https://<container-apps-url>.azurecontainerapps.io/result
+          - name: AZURE_QUEUE_SERVICE_URL
+            value: https://<storageaccount>.queue.core.windows.net
+        image: albums.azurecr.io/dog-cat-classifier:latest
+        name: dog-cat-classifier
+        resources:
+          cpu: 1
+          memory: 2Gi
+    scale:
+      minReplicas: 0
+      maxReplicas: 30
+      rules:
+        - name: queue-scaler
+          custom:
+            type: azure-queue
+            metadata:
+              accountName: dogcatstorage
+              queueName: images
+              cloud: AzurePublicCloud
+              queueLength: '1'
+            auth:
+              - secretRef: queue-connection-str
+                triggerParameter: connection
