@@ -1,6 +1,5 @@
 using Azure.Identity;
 using Azure.Storage.Queues;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,15 +15,17 @@ var queueClient = new QueueClient(new Uri(url), credential, new QueueClientOptio
     MessageEncoding = QueueMessageEncoding.Base64
 });
 
-app.MapPost("/submitimages", async ctx =>
+var folders = new string[] { "Cat", "Dog" };
+
+app.UseFileServer();
+
+app.MapPost("/submitimages", async (int numImages) =>
 {
-    var numImages = Convert.ToInt32(ctx.Request.Query.Single(x => x.Key == "numimages").Value.ToString());
     numImages = Math.Min(Math.Abs(numImages), 1000);
-    var rand = new Random();
     var tasks = Enumerable.Range(0, numImages).Select(_ =>
     {
-        var imageNum = rand.Next(1, 500);
-        var folder = new string[] {"Cat", "Dog"}[rand.Next(0, 2)];
+        var imageNum = Random.Shared.Next(1, 500);
+        var folder = folders[Random.Shared.Next(0, 2)];
         var filename = $"{folder}/{imageNum}.jpg";
         System.Console.WriteLine($"{filename}");
         return queueClient.SendMessageAsync($"https://pythonqueueimage.blob.core.windows.net/images/{filename}");
@@ -32,20 +33,14 @@ app.MapPost("/submitimages", async ctx =>
 
     await Task.WhenAll(tasks);
 
-    ctx.Response.ContentType = "text/plain";
-    await ctx.Response.WriteAsync(numImages.ToString());
+    return numImages.ToString();
 });
 
-app.MapPost("/result", async (HttpContext ctx, [FromBody] object progress) =>
+app.MapPost("/result", async (object progress, IHubContext<ProgressHub> hubContext) =>
 {
-    var hubContext = ctx.RequestServices
-        .GetRequiredService<IHubContext<ProgressHub>>();
     await hubContext.Clients.All.SendAsync("NewProgress", progress);
 });
 
 app.MapHub<ProgressHub>("/progress");
-
-app.UseDefaultFiles();
-app.UseStaticFiles();
 
 app.Run();
