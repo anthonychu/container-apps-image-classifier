@@ -3,3 +3,4 @@ azure-identity==1.10.0
 tensorflow==1.15.5
 Pillow
 requests
+protobuf<3.20

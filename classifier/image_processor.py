@@ -17,6 +17,7 @@ keep_running = True
 
 def handler_stop_signals(signum, frame):
     global keep_running
+    print(f"Signal {signum} received")
     keep_running = False
 
 signal.signal(signal.SIGINT, handler_stop_signals)
@@ -24,9 +25,11 @@ signal.signal(signal.SIGTERM, handler_stop_signals)
 
 default_credential = DefaultAzureCredential()
 client = QueueServiceClient(os.environ['AZURE_QUEUE_SERVICE_URL'], credential=default_credential)
-queue_client = client.get_queue_client("images", 
+queue_client = client.get_queue_client(os.environ['AZURE_QUEUE_NAME'],
                     message_encode_policy = BinaryBase64EncodePolicy(),
                     message_decode_policy = BinaryBase64DecodePolicy())
+
+run_once = os.environ.get('RUN_ONCE', '0') == '1'
 
 while keep_running:
     try:
@@ -48,6 +51,10 @@ while keep_running:
             sleep(5)
     except Exception as e:
         print(e)
+    finally:
+        if run_once:
+            keep_running = False
+            print('Run once mode, exiting loop...')
 
 if (not keep_running):
     print("Shutting down...")

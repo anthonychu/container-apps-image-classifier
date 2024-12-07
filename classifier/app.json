@@ -1,0 +1,45 @@
+{
+  "properties": {
+    "template": {
+      "containers": [
+        {
+          "env": [
+            {
+              "name": "FRONTEND_RESULT_URL",
+              "value": "https://dog-cat-frontend.gentletree-0ee8c7a5.canadacentral.azurecontainerapps.io/result"
+            },
+            {
+              "name": "AZURE_QUEUE_SERVICE_URL",
+              "value": "https://dogcatstorage.queue.core.windows.net"
+            }
+          ],
+          "image": "albums.azurecr.io/dog-cat-classifier:latest",
+          "name": "dog-cat-classifier",
+          "resources": {
+            "cpu": 1.0,
+            "memory": "2Gi"
+          }
+        }
+      ],
+      "scale": {
+        "maxReplicas": 25,
+        "minReplicas": 0,
+        "rules": [
+          {
+            "azureQueue": {
+              "auth": [
+                {
+                  "secretRef": "queue-connection-str",
+                  "triggerParameter": "connection"
+                }
+              ],
+              "queueLength": 1,
+              "queueName": "images"
+            },
+            "name": "queue-scaler"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -7,28 +7,27 @@ builder.Services.AddSignalR();
 
 var app = builder.Build();
 
-var url = $"{builder.Configuration["AZURE_QUEUE_SERVICE_URL"]}/images";
-System.Console.WriteLine(url);
+var queueName = builder.Configuration["AZURE_QUEUE_NAME"];
+var queueUrl = $"{builder.Configuration["AZURE_QUEUE_SERVICE_URL"]}{queueName}";
+System.Console.WriteLine(queueUrl);
 var credential = new DefaultAzureCredential();
-var queueClient = new QueueClient(new Uri(url), credential, new QueueClientOptions
+var queueClient = new QueueClient(new Uri(queueUrl), credential, new QueueClientOptions
 {
     MessageEncoding = QueueMessageEncoding.Base64
 });
 
-var folders = new string[] { "Cat", "Dog" };
-
 app.UseFileServer();
 
+var imagesBaseUrl = builder.Configuration["AZURE_STORAGE_STATIC_WEBSITE_URL"];
 app.MapPost("/submitimages", async (int numImages) =>
 {
     numImages = Math.Min(Math.Abs(numImages), 1000);
     var tasks = Enumerable.Range(0, numImages).Select(_ =>
     {
-        var imageNum = Random.Shared.Next(1, 500);
-        var folder = folders[Random.Shared.Next(0, 2)];
-        var filename = $"{folder}/{imageNum}.jpg";
+        var imageNum = Random.Shared.Next(0, 1000);
+        var filename = $"{imageNum}.jpg";
         System.Console.WriteLine($"{filename}");
-        return queueClient.SendMessageAsync($"https://pythonqueueimage.blob.core.windows.net/images/{filename}");
+        return queueClient.SendMessageAsync($"{imagesBaseUrl}{filename}");
     });
 
     await Task.WhenAll(tasks);

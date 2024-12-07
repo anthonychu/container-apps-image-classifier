@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: aca-image-classifier
+metadata:
+  template: aca-image-classifier@0.0.1-beta
+hooks:
+  postdeploy: 
+    posix:
+      shell: sh
+      run: ./hooks/postdeploy.sh
+#     windows:
+#       shell: pwsh
+#       run: ./hooks/postdeploy.ps1
+  postup:
+    posix:
+      shell: sh
+      run: ./hooks/postup.sh
+#     windows:
+#       shell: pwsh
+#       run: ./hooks/postup.ps1
